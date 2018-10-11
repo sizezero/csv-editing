@@ -1,0 +1,586 @@
+
+* overview
+
+- BOM is unicode character U+FEFF
+- UTF-8 representation of BOM is the hex sequence 0xEF 0xBB 0xBF
+- the sequence usually appears at the beginning of the file but can
+  appear in the middle of the file. If it appears in the middle of the
+  file then it should be interpreted as "a zero-width non-breaking
+  space"
+- Best practice is to not use BOMs but Microsoft tools tend to barf if
+  BOMs are not present.
+
+https://en.wikipedia.org/wiki/Byte_order_mark
+
+https://stackoverflow.com/questions/2223882/whats-different-between-utf-8-and-utf-8-without-bom
+
+According to the unicode standard:
+
+    2.6 Encoding Schemes
+
+    ... Use of a BOM is neither required nor recommended for UTF-8,
+    but may be encountered in contexts where UTF-8 data is converted
+    from other encoding forms that use a BOM or where the BOM is used
+    as a UTF-8 signature. See the “Byte Order Mark” subsection in
+    Section 16.8, Specials, for more information.
+
+The strongest reason for not using a BOM is that ENCODINGS SHOULD BE
+KNOWN NOT DIVINED. BOMs are a method that allows tools to guess at an
+encoding.
+
+* Problems with BOMs
+
+There are at least three problems with putting a BOM in UTF-8 encoded files.
+
+1. Files that hold no text are no longer empty because they always
+   contain the BOM.
+2. Files that hold text that is within the ASCII subset of UTF-8 is no
+   longer themselves ASCII because the BOM is not ASCII, which makes
+   some existing tools break down, and it can be impossible for users
+   to replace such legacy tools.
+3. It is not possible to concatenate several files together because
+   each file now has a BOM at the beginning.
+
+It is neither sufficient nor necessary to have a BOM to detect that
+something is UTF-8:
+
+- It is not sufficient because an arbitrary byte sequence can happen
+  to start with the exact sequence that constitutes the BOM.
+- It is not necessary because you can just read the bytes as if they
+  were UTF-8; if that succeeds, it is, by definition, valid UTF-8.
+
+* So no sane person would use a BOM right?
+
+There is one gigantic problem with this: Microsoft. Microsoft's tools
+tend to fail when reading unicode files that don't have BOMs.
+
+* Various CSV editors
+
+As you will see in the following "Tests" section, normal editors and
+spreadsheets have problems with editing CSV files. I've tried to find
+a good general CSV editor with out much luck.
+
+- "Comma Chameleion" is a free CSV editor that is available for
+  Windows, OSX and Linux.
+  - http://comma-chameleon.io/
+  - this is a pretty good editor that is available for free on Win,
+    Mac and Linux
+  - it handles BOM and unicode very well
+  - a bug was found in this app related to double quoting that makes
+    it unusable
+    - 
+  - it claims to be replaced by data curator which is still in alpha
+  - the app is no longer supported
+- The atom text editor
+  - available via hutch software center and linux
+  - has tablr and table-editor mode
+  - not very friendly; not easy to do things like add rows
+- Tad
+  - https://www.tadviewer.com/
+  - read-only
+- Ron's editor
+   - https://www.ronsplace.eu/products/ronseditor
+   - Windows only
+   - haven't reviewed
+   - has 30 day evaluation
+- Delimit
+  - http://delimitware.com/
+  - Windows only
+  - haven't reviewed
+  - claim to fame is that it is able to edit multi-million row files
+- reCsvEditor
+  - http://recsveditor.sourceforge.net/
+  - written in java so runs on anything
+  - ugly java-esque UI
+  - not quick to edit
+    - UI is designed to load and read broken files
+    - lots of dialogs of options
+  - really unintuitive editor
+- DmCsvEditor
+  - https://code.google.com/archive/p/dmcsveditor/
+  - unsupported; turns into CVSPad for Windows
+- Data Curator
+  - https://theodi.org.au/data-curator/
+  - comma chameleon team is now working on this
+  - no linux version but claims it can be built by hand
+    - managed to build from source
+    - there is an open issue to ship a linux version
+
+* Tests
+
+Three files:
+- test1-bom.csv :: unix line endings, first character is bom, high
+                   unicode characters
+- test1-no-bom.csv :: unix line endings, no bom, high unicode
+     characters
+- test1-bom-utf-7.csv :: unix line endings, first character is bom,
+     only ascii 7 characters
+- test1-no-bom-utf-7.csv :: unix line endings, nox bom, only ascii 7
+     characters
+
+Some familar tools as well as some unfamilar ones:
+- Sublime is a text editor that is used by some groups in SCHARP. It
+  is available on windows via the Hutch's sofware center
+
+- test1-bom.csv
+  - unix file command
+    - test1-bom.csv: UTF-8 Unicode (with BOM) text
+  - emacs
+    - reads file correctly
+    - modifications to file leave BOM intact
+  - notepad
+    - correctly reads utf
+    - screws up unix line endings
+    - didn't bother with write test
+  - wordpad
+    - reads utf
+    - works with line endings
+    - writes to file
+      - removes BOM
+      - replaces unix line endings with windows line endings.
+      - converts utf8 to windows code page
+  - sublime
+    - "sublime text 3" popular windows text editor available in
+      software center
+    - reads utf
+    - works with line endings
+    - writing to file
+      - preserves BOM
+      - preserves unix line endings
+      - preserves utf8
+  - Excel
+    - "Office Professional Plus 2016"
+    - reads utf8
+    - reads line endings
+    - writing to file
+      - removes BOM
+      - converts unix line endings to windows
+      - converts utf8 to windows code page
+      - converts comma separators to tabs
+    - re-reading written file fails to read tab separated data and
+      puts all data in a single column
+    - save as "CSV UTF-8 (Comma delimited)" (not default)
+      - prompt to write over existing file
+      - warning about possible data loss
+      - correctly writes BOM
+      - correctly writes utf8
+      - correctly writes comma separators
+      - converts unix line endings to windows
+    - after a single "save as" further saves will write to the "CSV
+      UTF-8 (Comma delimited)" format
+  - libreoffice calc
+    - brings up "text import" screen
+      - comma separated on by default
+      - utf-8 on by default
+      - hitting ok brings up the file
+    - save prompts to either save in CSV or ODF
+      - further saves do not prompt
+    - removes BOM
+      - https://bugs.documentfoundation.org/show_bug.cgi?id=82254
+    - correctly writes utf8
+    - correctly writes line endings
+  - Comma Chameleon (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly writes BOM
+    - correctly writes characters
+    - converts unix newlines to windows
+  - datacurator (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly writes characters
+    - preserves unix line endings
+    - REMOVES BOM
+- test1-no-bom.csv
+  - unix file command
+    - test1-no-bom.csv: UTF-8 Unicode text
+  - emacs
+    - reads file correctly
+    - modifications to file do not add BOM
+  - notepad
+    - correctly reads utf
+    - screws up unix line endings
+    - didn't bother with write test
+  - wordpad
+    - garbles reading of utf (maybe interprets as windows code page?)
+    - correctly reads line endings
+    - didn't bother with write test
+  - sublime
+    - reads utf
+    - works with line endings
+    - writing to file
+      - adds a BOM to the beginning of the file even though none was
+        present in the file as read
+      - preserves unix line endings
+      - preserves utf8
+  - Excel
+    - garbles utf8 characters (maybe interprets as windows code page?)
+    - correctly reads line endings
+    - didn't bother with write test
+  - libreoffice calc
+    - brings up "text import" screen
+      - comma separated on by default
+      - utf-8 on by default
+      - hitting ok brings up the file
+    - save prompts to either save in CSV or ODF
+      - further saves do not prompt
+    - correctly does not write BOM
+    - correctly writes utf8
+    - correctly writes line endings
+  - Comma Chameleon
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly does not add BOM
+    - correctly writes characters
+    - converts unix newlines to windows
+  - datacurator (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly writes characters
+    - preserves unix line endings
+    - correctly does not remove BOM
+- test1-bom-utf-7.csv
+  - unix file command
+    - test1-bom-utf-7.csv: UTF-8 Unicode (with BOM) text
+  - emacs
+    - reads file correctly
+    - modifications to file leave BOM intact
+  - notepad
+    - correctly reads ascii
+    - screws up unix line endings
+    - didn't bother with write test
+  - wordpad
+    - reads ascii
+    - works with line endings
+    - writes to file
+      - removes BOM
+      - replaces unix line endings with windows line endings
+      - correctly writes ascii
+  - sublime
+    - reads ascii
+    - works with line endings
+    - writing to file
+      - preserves BOM
+      - preserves unix line endings
+  - Excel
+    - reads ascii
+    - reads line endings
+    - writing to file
+      - removes BOM
+      - converts unix line endings to windows
+      - correctly writes ascii
+      - converts comma separators to tabs
+    - re-reading written file fails to read tab separated data and
+      puts all data in a single column
+    - save as "CSV UTF-8 (Comma delimited)" (not default)
+      - prompt to write over existing file
+      - warning about possible data loss
+      - correctly writes BOM
+      - correctly writes ascii
+      - correctly writes comma separators
+      - converts unix line endings to windows
+    - after a single "save as" further saves will write to the "CSV
+      UTF-8 (Comma delimited)" format
+  - libreoffice calc
+    - brings up "text import" screen
+      - comma separated on by default
+      - utf-8 on by default
+      - hitting ok brings up the file
+    - save prompts to either save in CSV or ODF
+      - further saves do not prompt
+    - removes BOM
+    - correctly writes ascii
+    - correctly writes line endings
+  - Comma Chameleon
+    - reads ascii
+    - reads line endings
+    - saves without prompt
+    - correctly writes BOM
+    - correctly writes characters
+    - converts unix newlines to windows
+    - adding hi byte chars to this file works
+  - datacurator (linux version)
+    - reads ascii
+    - reads line endings
+    - saves without prompt
+    - correctly writes characters
+    - preserves unix line endings
+    - REMOVES BOM
+    - adding hi byte chars to this file works
+- test1-no-bom-utf-7.csv
+  - unix file command
+    - test1-no-bom-utf-7.csv: ASCII text
+  - emacs
+    - no problems
+  - notepad
+    - correctly reads ascii
+    - screws up unix line endings
+    - didn't bother with write test
+  - wordpad
+    - reads ascii
+    - works with line endings
+    - writes to file
+      - replaces unix line endings with windows line endings
+      - correctly writes ascii
+  - sublime
+    - reads ascii
+    - works with line endings
+    - writing to file
+      - adds a BOM to the beginning of the file even though none was
+        present in the file as read
+      - preserves unix line endings
+      - preserves ascii
+  - Excel
+    - reads ascii
+    - reads line endings
+    - writing to file
+      - correctly does not add a BOM
+      - converts unix line endings to windows
+      - correctly writes ascii
+    - no need to "save as" to get correct write behavior
+  - libreoffice calc
+    - brings up "text import" screen
+      - comma separated on by default
+      - utf-8 on by default
+      - hitting ok brings up the file
+    - save prompts to either save in CSV or ODF
+      - further saves do not prompt
+    - correctly does not add BOM
+    - correctly writes ascii
+    - correctly writes line endings
+  - Comma Chameleon
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly does not add BOM
+    - correctly writes characters
+    - converts unix newlines to windows
+    - adding hi bit char correctly writes
+      - does not cause a BOM to be added to the file
+  - datacurator (linux version)
+    - reads ascii
+    - reads line endings
+    - saves without prompt
+    - correctly writes characters
+    - preserves unix line endings
+    - adding hi byte chars to this file works
+      - does not cause a BOM to be added to the file
+- test1-bom-crlf.csv
+  - Comma Chameleon (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly writes BOM
+    - correctly writes characters
+    - correctly preserves windows newlines
+  - datacurator (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly writes characters
+    - CONVERTS WINDOWS LINE ENDINGS TO UNIX
+    - REMOVES BOM
+- test1-no-bom-crlf.csv
+  - Comma Chameleon (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly does not write BOM
+    - correctly writes characters
+    - correctly preserves windows newlines
+  - datacurator (linux version)
+    - reads utf8
+    - reads line endings
+    - saves without prompt
+    - correctly writes characters
+    - correctly does not write BOM
+    - CONVERTS WINDOWS LINE ENDINGS TO UNIX
+
+* Lessons
+
+- the only tools that were 100% correct are
+  - unix file
+  - emacs
+  - comma chameleon is almost 100% correct but converts newlines to
+    windows
+  - datacurator removes BOMs
+- spreadsheets both spreadsheets have problems
+  - Excel requires BOM in order to correctly read the file
+  - Excel always writes file with windows newlines
+  - Excel writes BOM when file contains high bit characters
+  - Excel does not write BOM when file does not contain high bit characters
+  - I think the required "save as" behavior of Excel is problematic;
+    it makes me want to use libreoffice
+  - Libreoffice Calc doesn't care if BOM exists or not
+  - Libreoffice Calc _never_ writes the BOM
+
+Spreadsheets also have additional problems that has been described in
+the SCHARP-Standard-Types document
+- floating point numbers can be silently written incorrectly
+- dates can be silently written incorrectly
+
+** Solution 1, standardize on reliable editors
+
+Emacs and to a lesser degree Sublime can edit text files including CSV
+files with few problems. Each has a CSV mode that allow some extra CSV
+commands but neither shows the separate fields in aligned cells like a
+spreadsheet. We can find a text editor that can edit and likely not
+damage the CSV file but they also do not make the editing easy.
+
+Comma chameleon allows for easy cell editing while also correctly
+handling unicode.
+
+If we want to allow sublime and Comma Chameleon then we should
+standardize our CSV files with windows line endings in order to
+prevent extraneous diffs. We have a choice of choosing whether or not
+our files start with a BOM.
+
+** Solution 2, commit to crappy Excel
+
+- require CSVs have windows newline endings
+- require a BOM when CSV contains high bit characters
+- CSV that have only low bit characters may have BOM or not
+- this means that users must use a decent text editor or Excel to edit
+  CSV files that have high bit characters
+- suffer
+  - problematic "save as" behavior
+  - possible corruption in floating point fields
+  - likely corruption in date fields
+
+I really hate to have to bend standards due to the shitty tools that
+happen to be in use by the organization.
+
+** Solution 3, drop Unicode for data dictionaries
+
+An alternative is to say that data dictionary files will _not_ contain
+high bit characters. This likely only matters in the description field
+but could affect the expression field in variable maps.
+
+This could be problematic if someone wants an expression that does
+something to lab units such as mu. I think this is possible and thus
+this is a bad solution.
+
+** Solution 4, use excel file format for data dictionaries
+
+Cons:
+- no easy auditing of changes (binary file in svn)
+- possible problems between file format versions
+- will need to find good libraries to read and write
+- users can make the files more complicated with sheets, macros,
+  styling, etc
+- this is really standardizing on a tool not a data format
+  - it's moving away from data standards and best of breed and closer
+    to vendor lock in
+
+** Solution 5, give the delphi tool a way to correct CSVs
+
+The delphi command tool could have an option to repair bad CSV files.
+
+- convert file to consistent line endings
+- add a bom if it is missing
+- other?
+
+This would allow people to use a wider variety of tools to edit thes
+files and fix some of the gotchas when mis-using a tool.
+
+Cons:
+- sometimes the file is irreparable. If a user forgets to "save as" in
+  Excel all kinds of damage can be done to the file that is unfixable.
+
+* building comma chameleon
+
+- checked out github repo
+  - git clone https://github.com/sizezero/comma-chameleon.git
+  - cd comma-chameleon
+- infrastructure install npm
+- npm install -g bower electron
+  - failed due to trying to write to /usr/local
+- npm config set prefix ~/npm
+- export PATH="$PATH:$HOME/npm/bin"
+- export NODE_PATH="$NODE_PATH:$HOME/npm/lib/node_modules"
+- npm install -g bower electron
+- npm install
+- bower install
+- npm start
+  - runs app
+- npm install --global gulp-cli
+  - "gulp --version" shows something
+- npm i electron-packager g
+- gulp build --platform=linux
+  - electron-packager not found
+- npm install --global electron-packager
+  - electron-packager --version
+- gulp build --platform=linux
+- /devel/kleemann/comma-chameleon/packages/Comma-Chameleon-linux-x64/Comma-Chameleon write-test.csv
+  - edits CSV file
+
+* building 
+
+- infrastructure installed yarn on horse
+  - https://yarnpkg.com/en/docs/install#centos-stable
+  - yarn --version
+- git clone https://github.com/ODIQueensland/data-curator.git
+- yarn run build
+  - fails when running from new shell
+  - running from CC environment above fails as well
+  - looks like dependencies are pulled with bare "yarn"
+- yarn
+  - warns about old node version
+  - fetched a bunch of packages; failed
+  - tried again; quickly hit 1755/1757 and stalled
+  - got some errors about incompatible modules
+
+Install a new local copy of node
+
+https://gist.github.com/isaacs/579814
+
+echo 'export PATH=$HOME/local/bin:$PATH' >> ~/.bashrc
+. ~/.bashrc
+mkdir ~/local
+mkdir ~/node-latest-install
+cd ~/node-latest-install
+curl http://nodejs.org/dist/node-latest.tar.gz | tar xz --strip-components=1
+./configure --prefix=~/local
+make install # ok, fine, this step probably takes more than 30 seconds...
+curl https://www.npmjs.org/install.sh | sh
+
+Warnings about "Ignoring unknown extended header" during download and
+tar extraction.
+
+- infrastructure had to install gcc-c++ for configure to work
+- back to data-curator
+- yarn
+
+- trying to reinstalll node with v8.11.4
+- cd ~/node-v8
+- curl https://nodejs.org/dist/v8.11.4/node-v8.11.4.tar.gz | tar xz --strip-components=1
+- cd ~/local ; rm -rf bin/ include/ lib/ share/
+- cd ~/node-v8
+- ./configure --prefix=~/local
+  - warning about old C compiler
+- make install 
+- out/Release/node --version
+  - v8.11.4
+- added symlink to bin
+
+- back to data-curator
+- yarn
+  - mostly passed with a couple errors
+  - error An unexpected error occurred: "/scharp/devel/kleemann/data-curator/node_modules/spectron
+  - error Couldn't find the binary node .electron-vue/build.js && electron-builder
+- yarn run dev
+  - some warnings
+- after a long time brought up app
+  - edited write-test.csv
+  - wrote out correct quotes
+- yarn run build
+  - fails
+
+- from bug reports
+  - node .electron-vue/build.js && yarn run electron-builder --linux AppImage
+  - I can run build/linux-unpacked/datacurator from the command line
+  - Tobin was able to run this image on his machine
